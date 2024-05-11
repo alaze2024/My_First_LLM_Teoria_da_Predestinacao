@@ -1,0 +1,220 @@
+Resumo deste projeto de IA: Vamos construir um artigo científico sobre Teoria da Predestinação, fazendo uma Revisão Sistemática da literatura, adotando o protocolo PRISMA; com base nas obras e autores da temática, dos últimos cinco anos; trabalhos publicados em português, inglês ou espanhol; utilizando os seguintes descritores: "teoria da predestinação", "predestinação", "livre-arbítrio", "teoria do multiverso", "onisciência divina", "onipotência divina", e seus respectivos termos em inglês e espanhol. Vamos aplicar uma análise bibliométrica e uma análise lexicométrica nessa revisão sistemática.
+
+1ª correção:
+
+def search_articles(search_terms, language):
+  search_query = ' OR '.join(search_terms) + f' lang:{language}'
+  # OR
+  # search_query = ''
+  # for term in search_terms:
+  #   search_query += term + ' OR '
+  # search_query += f'lang:{language}'
+  search = scholarly.search_pubs(search_query)
+  results = []
+  for i in range(100): # limite de 100 artigos por idioma
+    try:
+      pub = next(search)
+      results.append({
+        'title': pub.bib['title'],
+        'authors': pub.bib['author'],
+        'year': pub.bib['year'],
+        'abstract': pub.bib['abstract'],
+        'url': pub.bib['url']
+      })
+    except StopIteration:
+      break
+  return results
+
+2ª correção:
+
+def search_articles(search_terms, language):
+  # Check the type of each item in the list
+  for term in search_terms:
+    if not isinstance(term, str):
+      raise TypeError("All items in the search_terms list must be strings.")
+
+  # Join the search terms into a single string
+  search_query = ' OR '.join(search_terms) + f' lang:{language}'
+
+  # Perform the search
+  search = scholarly.search_pubs(search_query)
+
+  # Extract the results
+  results = []
+  for i in range(100): # limite de 100 artigos por idioma
+    try:
+      pub = next(search)
+      results.append({
+        'title': pub.bib['title'],
+        'authors': pub.bib['author'],
+        'year': pub.bib['year'],
+        'abstract': pub.bib['abstract'],
+        'url': pub.bib['url']
+      })
+    except StopIteration:
+      break
+
+  return results
+
+3ª correção:
+
+search_terms = [term for term in search_terms if term != ...]
+search_terms = ["teoria da predestinação", "predestinação", "livre-arbítrio", "teoria do multiverso", "onisciência divina", "onipotência divina"]
+
+Versão após as três correções:
+
+!pip install scholarly pybliometrics nltk spacy pandas matplotlib wordcloud
+import scholarly
+import pandas as pd
+from pybliometrics.scopus import ScopusSearch
+from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize
+from nltk.probability import FreqDist
+import spacy
+import matplotlib.pyplot as plt
+from wordcloud import WordCloud
+
+def search_articles(search_terms, language):
+  search_query = ' OR '.join(search_terms) + f' lang:{language}'
+  search = scholarly.search_pubs(search_query)
+  results = []
+  for i in range(100): # limite de 100 artigos por idioma
+    try:
+      pub = next(search)
+      results.append({
+        'title': pub.bib['title'],
+        'authors': pub.bib['author'],
+        'year': pub.bib['year'],
+        'abstract': pub.bib['abstract'],
+        'url': pub.bib['url']
+      })
+    except StopIteration:
+      break
+  return results
+
+search_terms = ["teoria da predestinação", "predestinação", "livre-arbítrio", "teoria do multiverso", "onisciência divina", "onipotência divina"]
+pt_results = search_articles(search_terms, 'pt')
+en_results = search_articles(search_terms, 'en')
+es_results = search_articles(search_terms, 'es')
+
+def search_scopus(search_terms, language):
+  search_query = ' OR '.join(search_terms) + f' AND LANGUAGE({language})'
+  # OR
+  # search_query = ''
+  # for term in search_terms:
+  #   search_query += term + ' OR '
+  # search_query += f'lang:{language}'
+  search = scholarly.search_pubs(search_query)
+  results = []
+  for i in range(100): # limite de 100 artigos por idioma
+    try:
+      pub = next(search)
+      results.append({
+        'title': pub.bib['title'],
+        'authors': pub.bib['author'],
+        'year': pub.bib['year'],
+        'abstract': pub.bib['abstract'],
+        'url': pub.bib['url']
+      })
+    except StopIteration:
+      break
+  return results
+
+  search = ScopusSearch(search_query, view='STANDARD', download=True)
+  results = []
+  for pub in search.results:
+    results.append({
+      'title': pub.title,
+      'authors': pub.author_names,
+      'year': pub.coverDate[:4],
+      'abstract': pub.description,
+      'url': pub.prism_url
+    })
+  return results
+
+pt_results += search_scopus(search_terms, 'Portuguese')
+en_results += search_scopus(search_terms, 'English')
+es_results += search_scopus(search_terms, 'Spanish')
+
+df = pd.DataFrame(pt_results + en_results + es_results)
+df.drop_duplicates(subset=['title', 'authors'], inplace=True)
+
+nltk.download('stopwords')
+stop_words = set(stopwords.words('portuguese') + stopwords.words('english') + stopwords.words('spanish'))
+
+def clean_text(text):
+  text = text.lower()
+  text = re.sub(r'[^\w\s]', '', text)
+  text = ' '.join([word for word in text.split() if word not in stop_words])
+  return text
+
+df['abstract'] = df['abstract'].apply(clean_text)
+
+# Número de publicações por ano
+df['year'].value_counts().plot(kind='bar')
+plt.title('Número de Publicações por Ano')
+plt.show()
+
+# Autores mais frequentes
+all_authors = []
+for authors in df['authors']:
+  all_authors.extend(authors.split(', '))
+author_counts = pd.Series(all_authors).value_counts()[:10] # top 10
+author_counts.plot(kind='bar')
+plt.title('Autores Mais Frequentes')
+plt.show()
+
+# Distribuição de publicações por idioma
+df['language'] = ['Português' if 'pt' in url else 'Inglês' if 'en' in url else 'Espanhol' for url in df['url']]
+df['language'].value_counts().plot(kind='pie', autopct='%1.1f%%')
+plt.title('Distribuição de Publicações por Idioma')
+plt.show()
+
+all_words = []
+for abstract in df['abstract']:
+  all_words.extend(word_tokenize(abstract))
+word_freq = FreqDist(all_words)
+wordcloud = WordCloud(width=800, height=400, background_color='white').generate_from_frequencies(word_freq)
+plt.figure(figsize=(10, 5))
+plt.imshow(wordcloud, interpolation='bilinear')
+plt.axis('off')
+plt.show()
+
+Chave API da Elsevier: 658c0ca5677cb704ad195ed61a1cb6d1.
+Chave API do Gemini AI Studio: AIzaSyAlDqUn2RisIdaHkVBL414ZNx5jDs90qyE.
+
+Meu projeto no Google Coab: https://colab.research.google.com/drive/1KgiOLx5PupMYGaBrVIOQ9JHDgf4z2tng?authuser=0#scrollTo=xlFsLzIsrgAn. 
+
+Prompt 1: 
+!pip install -q -U google-generativeai
+
+Prompt 2: 
+# Import the Python SDK
+import google.generativeai as genai
+
+GOOGLE_API_KEY="AIzaSyAlDqUn2RisIdaHkVBL414ZNx5jDs90qyE"
+genai.configure(api_key=GOOGLE_API_KEY)
+
+Prompt 3:
+model = genai.GenerativeModel('gemini-pro')
+
+Prompt 4:
+response = model.generate_content("Vamos aprender conteúdo de IA. Me dê sugestões.")
+print(response.text)
+
+Atenciosamente,
+
+Álaze Gabriel do Breviário
+Escritor, palestrante, mentor, consultor.
+Mestrando em Administração, linha de pesquisa Finanças Corporativas Avançadas (Must University-2025);
+Cursando MBA em Tesouraria Corporativa (USP-2025);
+Cursando MBA em Gestão Tributária (USP-2025);
+Cursando pós em Neurociências, Comportamento e Psicopatologia (PUR-PR-2025);
+Cursando pós em Uso Educacional da Internet (UFLA-2025);
+Especialista em Finanças e Controladoria (USP-2023);
+Especialista em Gestão Financeira (UNINTER-2022); 
+Especialista em Docência e Pesquisa para o Ensino Superior (UNIMES-2015);
+Especialista em Finanças e Controladoria (UBC-2014);
+Bacharel em Ciências Contábeis (UNIMES-2019);
+Bacharelado em Estatística incompleto (UFSCar-2013-2017);
+Tecnólogo em Gestão de Negócios (UBC-2012).
