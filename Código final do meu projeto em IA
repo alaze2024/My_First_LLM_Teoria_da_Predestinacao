@@ -1,0 +1,112 @@
+# Instalação de bibliotecas (faça isso apenas uma vez no início do seu notebook)
+!pip install -q -U google-generativeai scholarly pybliometrics nltk spacy pandas matplotlib wordcloud
+
+# Importações
+import google.generativeai as genai
+from google.colab import userdata
+import scholarly
+import pandas as pd
+from pybliometrics.scopus import ScopusSearch
+from nltk.corpus import stopwords
+from nltk.tokenize import word_tokenize
+from nltk.probability import FreqDist
+import spacy
+import matplotlib.pyplot as plt
+from wordcloud import WordCloud
+import requests
+from bs4 import BeautifulSoup
+
+# Configuração do Gemini API
+api_key = userdata.get("SECRET_KEY")
+genai.configure(api_key=api_key)
+model = genai.GenerativeModel('gemini-pro')
+
+response = model.generate_content("Vamos fazer uma revisão sistemática sobre Teoria da Predestinação. Me dê sugestões.")
+print(response.text)
+
+# Configuração do Proxy
+# Definindo um link para a página da web.
+url = "https://api.proxyscrape.com/v3/free-proxy-list/get?request=displayproxies&country=br&proxy_format=protocolipport&format=text&timeout=20000"
+response = requests.get(url)
+proxies = response.text.splitlines()
+scholarly.use_proxy(proxies)
+
+# Função para buscar no Google Scholar (usando um proxy da lista)
+def search_articles(search_terms, language, proxy):
+    search_query = ' OR '.join(search_terms) + f' lang:{language}'
+    search = scholarly.search_pubs(search_query)
+    results = []
+    for i in range(100): # limite de 100 artigos por idioma
+        try:
+            pub = next(search)
+            results.append({
+                'title': pub.bib['title'],
+                'authors': pub.bib['author'],
+                'year': pub.bib['year'],
+                'abstract': pub.bib['abstract'],
+                'url': pub.bib['url']
+            })
+        except StopIteration:
+            break
+    return results
+
+# Função para busca na Scopus (usando um proxy da lista)
+def search_scopus(search_terms, language, proxy):
+    search_query = ' OR '.join(search_terms) + f' AND LANGUAGE({language})'
+    search = ScopusSearch(search_query, view='STANDARD', download=True)
+    results = []
+    for pub in search.results:
+        results.append({
+            'title': pub.title,
+            'authors': pub.author_names,
+            'year': pub.coverDate[:4],
+            'abstract': pub.description,
+            'url': pub.prism_url
+        })
+    return results
+
+# Termos de busca
+search_terms = ["teoria da predestinação", "predestinação", "livre-arbítrio", "teoria do multiverso", "onisciência divina", "onipotência divina"]
+
+# Busca de artigos (usando um proxy diferente para cada busca)
+pt_results = []
+en_results = []
+es_results = []
+for i, proxy in enumerate(proxies):
+    pt_results += search_articles(search_terms, 'pt', proxy) + search_scopus(search_terms, 'Portuguese', proxy)
+    en_results += search_articles(search_terms, 'en', proxy) + search_scopus(search_terms, 'English', proxy)
+    es_results += search_articles(search_terms, 'es', proxy) + search_scopus(search_terms, 'Spanish', proxy)
+
+# Criar o DataFrame
+df = pd.DataFrame(pt_results + en_results + es_results)
+df.drop_duplicates(subset=['title', 'authors'], inplace=True)
+
+# Número de publicações por ano
+df['year'].value_counts().plot(kind='bar')
+plt.title('Número de Publicações por Ano')
+plt.show()
+
+# Autores mais frequentes
+all_authors = []
+for authors in df['authors']:
+  all_authors.extend(authors.split(', '))
+author_counts = pd.Series(all_authors).value_counts()[:10] # top 10
+author_counts.plot(kind='bar')
+plt.title('Autores Mais Frequentes')
+plt.show()
+
+# Distribuição de publicações por idioma
+df['language'] = ['Português' if 'pt' in url else 'Inglês' if 'en' in url else 'Espanhol' for url in df['url']]
+df['language'].value_counts().plot(kind='pie', autopct='%1.1f%%')
+plt.title('Distribuição de Publicações por Idioma')
+plt.show()
+
+all_words = []
+for abstract in df['abstract']:
+  all_words.extend(word_tokenize(abstract))
+word_freq = FreqDist(all_words)
+wordcloud = WordCloud(width=800, height=400, background_color='white').generate_from_frequencies(word_freq)
+plt.figure(figsize=(10, 5))
+plt.imshow(wordcloud, interpolation='bilinear')
+plt.axis('off')
+plt.show()
